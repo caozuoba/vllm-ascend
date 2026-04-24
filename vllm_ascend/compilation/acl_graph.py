@@ -192,6 +192,14 @@ class ACLGraphWrapper:
             )
 
         logger.info_once("Replaying aclgraph")
+        # The synchronization below protects full-graph mode, where
+        # update_attn_params may run on a separate stream and must not race with
+        # the previous graph replay. Piecewise graph replay does not use
+        # update_attn_params, so it can skip this host-side stream sync.
+        if self.runtime_mode == CUDAGraphMode.PIECEWISE:
+            entry.aclgraph.replay()
+            return entry.output
+
         # In async scheduling or multi-threaded (MT) scenarios, it is possible that
         # the CPU's record event (from update_attn_params) for the iteration i completes
         # before the grph replay of iteration i-1.
